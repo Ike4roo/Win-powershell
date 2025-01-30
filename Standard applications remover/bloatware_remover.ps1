@@ -9,70 +9,111 @@ If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 Function Show-Menu {
     Clear-Host
     Write-Host "Bloatware Removal Tool" -ForegroundColor Green
-	Write-Host "=========================="
+    Write-Host "=========================="
     Write-Host "Please choose an option:"
     Write-Host "1. Remove Microsoft Edge"
     Write-Host "2. Remove OneDrive"
     Write-Host "3. Remove All Bloatware"
     Write-Host "4. Exit"
-	Write-Host "=========================="
-    Write-Host "by Ike4Roo"
-	Write-Host "=========================="
+    Write-Host "=========================="
+    Write-Host "+++ by Ike4Roo +++"
+    Write-Host "=========================="
+}
+
+# Функция для принудительного удаления программы
+Function Remove-Program {
+    param (
+        [string]$ProgramName,
+        [string[]]$ProcessNames,
+        [string[]]$Directories,
+        [string[]]$RegistryPaths,
+        [string[]]$StartMenuPaths
+    )
+
+    Write-Host "Starting removal of $ProgramName..." -ForegroundColor Yellow
+
+    # Закрытие процессов
+    foreach ($ProcessName in $ProcessNames) {
+        Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Write-Host "Closed $ProcessName processes." -ForegroundColor Green
+    }
+
+    # Удаление директорий
+    foreach ($Directory in $Directories) {
+        if (Test-Path $Directory) {
+            Remove-Item -Path $Directory -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed directory: $Directory" -ForegroundColor Green
+        } else {
+            Write-Host "Directory not found: $Directory" -ForegroundColor Red
+        }
+    }
+
+    # Удаление из реестра
+    foreach ($RegistryPath in $RegistryPaths) {
+        if (Test-Path $RegistryPath) {
+            Remove-Item -Path $RegistryPath -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed registry key: $RegistryPath" -ForegroundColor Green
+        } else {
+            Write-Host "Registry key not found: $RegistryPath" -ForegroundColor Red
+        }
+    }
+
+    # Удаление ярлыков из меню "Пуск"
+    foreach ($StartMenuPath in $StartMenuPaths) {
+        if (Test-Path $StartMenuPath) {
+            Remove-Item -Path $StartMenuPath -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed Start Menu shortcut: $StartMenuPath" -ForegroundColor Green
+        } else {
+            Write-Host "Start Menu shortcut not found: $StartMenuPath" -ForegroundColor Red
+        }
+    }
+
+    Write-Host "$ProgramName removal complete!" -ForegroundColor Green
 }
 
 # Удаление Microsoft Edge
 Function Remove-MicrosoftEdge {
-    Write-Host "Starting Microsoft Edge removal..." -ForegroundColor Yellow
-    $EdgePath = "$env:ProgramFiles(x86)\Microsoft\Edge\Application"
-    If (Test-Path $EdgePath) {
-        Write-Host "Microsoft Edge found. Attempting to remove..." -ForegroundColor Green
-        ForEach ($Version in Get-ChildItem -Path $EdgePath -Directory) {
-            $InstallerPath = Join-Path -Path $Version.FullName -ChildPath "Installer\setup.exe"
-            If (Test-Path $InstallerPath) {
-                & $InstallerPath --uninstall --force-uninstall --system-level --verbose-logging
-                Write-Host "Removed version: $($Version.Name)" -ForegroundColor Green
-            }
-        }
-    } Else {
-        Write-Host "Microsoft Edge not installed. Skipping..." -ForegroundColor Red
-    }
+    $ProgramName = "Microsoft Edge"
+    $ProcessNames = @("msedge", "MicrosoftEdge")
+    $Directories = @(
+        "${env:ProgramFiles(x86)}\Microsoft\Edge",
+        "${env:ProgramFiles}\Microsoft\Edge",
+        "${env:LocalAppData}\Microsoft\Edge",
+        "${env:ProgramData}\Microsoft\Edge"
+    )
+    $RegistryPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe"
+    )
+    $StartMenuPaths = @(
+        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk",
+        "$env:AppData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk"
+    )
 
-    Write-Host "Attempting to remove legacy Microsoft Edge (UWP)..." -ForegroundColor Yellow
-    $RegKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\Packages"
-    Get-ChildItem -Path $RegKeyPath | Where-Object { $_.Name -like "*Microsoft-Windows-Internet-Browser-Package*" } | ForEach-Object {
-        Try {
-            Remove-ItemProperty -Path $_.PSPath -Name Visibility -ErrorAction Stop
-            Remove-Item -Path "$($_.PSPath)\Owners" -Recurse -Force -ErrorAction Stop
-            dism /online /Remove-Package /PackageName:$($_.Name)
-            Write-Host "Removed package: $($_.Name)" -ForegroundColor Green
-        } Catch {
-            Write-Host "Failed to remove package: $($_.Name)" -ForegroundColor Red
-        }
-    }
-    Write-Host "Microsoft Edge removal complete!" -ForegroundColor Green
+    Remove-Program -ProgramName $ProgramName -ProcessNames $ProcessNames -Directories $Directories -RegistryPaths $RegistryPaths -StartMenuPaths $StartMenuPaths
 }
 
 # Удаление OneDrive
 Function Remove-OneDrive {
-    Write-Host "Starting OneDrive removal..." -ForegroundColor Yellow
-    $OneDrivePath = "$env:LocalAppData\Microsoft\OneDrive\OneDrive.exe"
-    If (Test-Path $OneDrivePath) {
-        & $OneDrivePath /uninstall
-        Write-Host "OneDrive uninstalled successfully." -ForegroundColor Green
-    } Else {
-        Write-Host "OneDrive not found. Skipping..." -ForegroundColor Red
-    }
+    $ProgramName = "OneDrive"
+    $ProcessNames = @("OneDrive", "OneDriveStandaloneUpdater")
+    $Directories = @(
+        "$env:LocalAppData\Microsoft\OneDrive",
+        "$env:ProgramData\Microsoft OneDrive",
+        "$env:UserProfile\OneDrive"
+    )
+    $RegistryPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\OneDrive"
+    )
+    $StartMenuPaths = @(
+        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+        "$env:AppData\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"
+    )
 
-    # Удаление остатков OneDrive
-    Try {
-        Remove-Item -Path "$env:UserProfile\OneDrive" -Recurse -Force
-        Remove-Item -Path "$env:ProgramData\Microsoft OneDrive" -Recurse -Force
-        Write-Host "Removed residual OneDrive files." -ForegroundColor Green
-    } Catch {
-        Write-Host "Failed to remove residual OneDrive files." -ForegroundColor Red
-    }
-
-    Write-Host "OneDrive removal complete!" -ForegroundColor Green
+    Remove-Program -ProgramName $ProgramName -ProcessNames $ProcessNames -Directories $Directories -RegistryPaths $RegistryPaths -StartMenuPaths $StartMenuPaths
 }
 
 # Удаление всех Bloatware
